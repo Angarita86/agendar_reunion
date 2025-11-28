@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selector de Fecha y Hora para Reunión</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: auto;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        select, input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .error {
+            color: red;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Selecciona Fecha y Hora para tu Reunión Personalizada</h2>
+        <form id="meetingForm">
+            <label for="date">Fecha:</label>
+            <input type="date" id="date" required min="">
+
+            <label for="time">Hora (intervalos de 30 minutos):</label>
+            <select id="time" required>
+                <!-- Opciones generadas por JavaScript -->
+            </select>
+
+            <label for="koboUser">Usuario Kobo:</label>
+            <textarea id="koboUser" rows="3" placeholder="Ingresa información adicional aquí"></textarea>
+
+            <button type="submit">Confirmar Reunión</button>
+        </form>
+        <button id="downloadReport">Descargar Reporte</button>
+        <div id="confirmation" style="display: none; margin-top: 20px; padding: 10px; background-color: #d4edda; border: 1px solid #c3e6cb;">
+            <p>Reunión confirmada para: <span id="selectedDateTime"></span></p>
+        </div>
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        const dateInput = document.getElementById('date');
+        const timeSelect = document.getElementById('time');
+        const koboUserInput = document.getElementById('koboUser');
+        const form = document.getElementById('meetingForm');
+        const confirmation = document.getElementById('confirmation');
+        const errorDiv = document.getElementById('error');
+        const downloadButton = document.getElementById('downloadReport');
+
+        // Array para almacenar agendamientos
+        let agendamientos = [];
+
+        // Establecer la fecha mínima como hoy
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.min = today;
+
+        // Función para generar opciones de hora
+        function generateTimeOptions(selectedDate) {
+            timeSelect.innerHTML = ''; // Limpiar opciones anteriores
+            const now = new Date();
+            const selectedDateObj = new Date(selectedDate + 'T00:00:00');
+            const isToday = selectedDateObj.toDateString() === now.toDateString();
+
+            const startHour = 9; // 9 AM
+            const endHour = 17; // 5 PM
+
+            for (let hour = startHour; hour < endHour; hour++) {
+                for (let minute = 0; minute < 60; minute += 30) {
+                    const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const optionTime = new Date(selectedDate + 'T' + timeString + ':00');
+
+                    // Si es hoy, solo incluir horas futuras
+                    if (isToday && optionTime <= now) {
+                        continue;
+                    }
+
+                    const option = document.createElement('option');
+                    option.value = timeString;
+                    option.textContent = timeString;
+                    timeSelect.appendChild(option);
+                }
+            }
+
+            // Si no hay opciones disponibles, mostrar mensaje
+            if (timeSelect.options.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No hay horarios disponibles para esta fecha';
+                option.disabled = true;
+                timeSelect.appendChild(option);
+            }
+        }
+
+        // Generar opciones iniciales para hoy
+        generateTimeOptions(today);
+
+        // Actualizar opciones cuando cambie la fecha
+        dateInput.addEventListener('change', function() {
+            const selectedDate = dateInput.value;
+            if (selectedDate) {
+                generateTimeOptions(selectedDate);
+            }
+        });
+
+        // Manejar el envío del formulario
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            errorDiv.style.display = 'none';
+            const date = dateInput.value;
+            const time = timeSelect.value;
+            const koboUser = koboUserInput.value.trim();
+            if (!date || !time) {
+                errorDiv.textContent = 'Por favor, selecciona una fecha y hora válidas.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            const selectedDateTime = new Date(date + 'T' + time + ':00');
+            const now = new Date();
+
+            if (selectedDateTime <= now) {
+                errorDiv.textContent = 'No puedes agendar reuniones en fechas u horas pasadas.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Guardar agendamento
+            agendamientos.push({
+                fecha: date,
+                hora: time,
+                usuarioKobo: koboUser,
+                fechaHoraCompleta: selectedDateTime.toISOString()
+            });
+
+            document.getElementById('selectedDateTime').textContent = `${date} a las ${time}`;
+            confirmation.style.display = 'block';
+            // Aquí puedes integrar con un backend o API para guardar la reunión
+            console.log(`Reunión programada: ${date} ${time}, Usuario Kobo: ${koboUser}`);
+        });
+
+        // Manejar el botón de descargar reporte
+        downloadButton.addEventListener('click', function() {
+            const password = prompt('Ingresa la contraseña para descargar el reporte:');
+            if (password === '1026251375') {
+                if (agendamientos.length === 0) {
+                    alert('No hay agendamientos para descargar.');
+                    return;
+                }
+
+                // Crear datos para Excel
+                const data = [['Fecha', 'Hora', 'Usuario Kobo', 'Fecha y Hora Completa']];
+                agendamientos.forEach(ag => {
+                    data.push([ag.fecha, ag.hora, ag.usuarioKobo, ag.fechaHoraCompleta]);
+                });
+
+                // Crear workbook y worksheet
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Agendamientos');
+
+                // Descargar archivo
+                XLSX.writeFile(wb, 'reporte_agendamientos.xlsx');
+            } else {
+                alert('Contraseña incorrecta.');
+            }
+        });
+    </script>
+</body>
+</html>
